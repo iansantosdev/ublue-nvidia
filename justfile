@@ -1,6 +1,3 @@
-default:
-    @just --list
-
 set-kargs:
     rpm-ostree kargs \
         --append=rd.driver.blacklist=nouveau \
@@ -27,4 +24,5 @@ setup-firefox-flatpak-vaapi:
         --env=LIBVA_MESSAGING_LEVEL=1 \
         --env=MOZ_DISABLE_RDD_SANDBOX=1 \
         --env=NVD_BACKEND=direct \
+        --env=MOZ_ENABLE_WAYLAND=1 \
         org.mozilla.firefox

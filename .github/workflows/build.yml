@@ -1,27 +1,13 @@
 name: build-ublue
 on:
-  workflow_dispatch:
-    branches:
-      - dev
   pull_request:
-    branches:
-      - dev
-    paths-ignore:
-      - '**.md'
-      - '**.txt'
+  merge_group:
   schedule:
-    - cron: '20 21 * * *'  # 9:20pm everyday (1 hr delay after 'main' builds)
-      branches:
-      - dev
-  push:
-    branches:
-      - dev
-    paths-ignore:
-      - '**.md'
-      - '**.txt'
-
+    - cron: '0 9 * * *' # 9:00am everyday (1 hr delay after future 'akmods' builds)
+  workflow_dispatch:
 env:
-    IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
 jobs:
   build-akmods:
     name: Build akmods package
@@ -42,8 +28,8 @@ jobs:
 
       - name: Matrix Variables
         run: |
-            REPO=${{ github.repository }}
-            echo "IMAGE_NAME=akmods-${REPO##*-}" >> $GITHUB_ENV
+          REPO=${{ github.repository }}
+          echo "IMAGE_NAME=akmods-${REPO##*-}" >> $GITHUB_ENV
       - name: Generate tags
         id: generate-tags
         shell: bash
@@ -56,7 +42,7 @@ jobs:
           BUILD_TAGS=()
 
           # Have tags for tracking builds during pull request
-          SHA_SHORT="$(git rev-parse --short HEAD)"
+          SHA_SHORT="${GITHUB_SHA::7}"
           COMMIT_TAGS+=("pr-${{ github.event.number }}-${VARIANT}")
           COMMIT_TAGS+=("${SHA_SHORT}-${VARIANT}")
 
@@ -103,6 +89,7 @@ jobs:
             org.opencontainers.image.description=ublue-os ${{ env.IMAGE_NAME }} with akmods-nvidia packages pre-built
             io.artifacthub.package.readme-url=https://raw.githubusercontent.com/${{ github.repository }}/main/README.md
             io.artifacthub.package.logo-url=https://avatars.githubusercontent.com/u/1728152?s=200&v=4
+
       # Build image using Buildah action
       - name: Build Image
         id: build_image
@@ -131,6 +118,7 @@ jobs:
       # Push the image to GHCR (Image Registry)
       - name: Push To GHCR
         uses: redhat-actions/push-to-registry@v2
+        if: github.event_name != 'pull_request'
         id: push
         env:
           REGISTRY_USER: ${{ github.actor }}
@@ -144,33 +132,29 @@ jobs:
           extra-args: |
             --disable-content-trust
 
-      # Sign container
-      # - uses: sigstore/cosign-installer@v3.0.1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # # Only needed when running `cosign sign` using a key
-      # - name: Write signing key to disk
-      #   run: |
-      #     echo "${{ env.COSIGN_PRIVATE_KEY }}" > cosign.key
-      #     # DEBUG: get character count of key
-      #     wc -c cosign.key
-      #   env:
-      #     COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-
-      # - name: Login to GitHub Container Registry
-      #   uses: docker/login-action@v2
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      # # Sign container
+      # - uses: sigstore/cosign-installer@v3.0.3
+      #   if: github.event_name != 'pull_request'
 
       # - name: Sign container image
+      #   if: github.event_name != 'pull_request'
       #   run: |
-      #     cosign sign -y --key cosign.key ${{ steps.registry_case.outputs.lowercase }}/${{ steps.build_image.outputs.image }}@${TAGS}
+      #     cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ steps.registry_case.outputs.lowercase }}/${{ env.IMAGE_NAME }}@${TAGS}
       #   env:
       #     TAGS: ${{ steps.push.outputs.digest }}
       #     COSIGN_EXPERIMENTAL: false
+      #     COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
 
       - name: Echo outputs
+        if: github.event_name != 'pull_request'
         run: |
           echo "${{ toJSON(steps.push.outputs) }}"
 
@@ -201,8 +185,8 @@ jobs:
 
       - name: Matrix Variables
         run: |
-            REPO=${{ github.repository }}
-            echo "IMAGE_NAME=${{ matrix.image_name }}-${REPO##*-}" >> $GITHUB_ENV
+          REPO=${{ github.repository }}
+          echo "IMAGE_NAME=${{ matrix.image_name }}-${REPO##*-}" >> $GITHUB_ENV
       - name: Generate tags
         id: generate-tags
         shell: bash
@@ -215,7 +199,7 @@ jobs:
           BUILD_TAGS=()
 
           # Have tags for tracking builds during pull request
-          SHA_SHORT="$(git rev-parse --short HEAD)"
+          SHA_SHORT="${GITHUB_SHA::7}"
           COMMIT_TAGS+=("pr-${{ github.event.number }}-${VARIANT}")
           COMMIT_TAGS+=("${SHA_SHORT}-${VARIANT}")
 
@@ -295,6 +279,7 @@ jobs:
             org.opencontainers.image.version=${{ steps.labels.outputs.VERSION }}
             io.artifacthub.package.readme-url=https://raw.githubusercontent.com/${{ github.repository }}/main/README.md
             io.artifacthub.package.logo-url=https://avatars.githubusercontent.com/u/1728152?s=200&v=4
+
       # Build image using Buildah action
       - name: Build Image
         id: build_image
@@ -325,6 +310,7 @@ jobs:
       - name: Push To GHCR
         uses: redhat-actions/push-to-registry@v2
         id: push
+        if: github.event_name != 'pull_request'
         env:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_PASSWORD: ${{ github.token }}
@@ -337,32 +323,28 @@ jobs:
           extra-args: |
             --disable-content-trust
 
-      # Sign container
-      # - uses: sigstore/cosign-installer@v3.0.1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Only needed when running `cosign sign` using a key
-      # - name: Write signing key to disk
-      #   run: |
-      #     echo "${{ env.COSIGN_PRIVATE_KEY }}" > cosign.key
-      #     # DEBUG: get character count of key
-      #     wc -c cosign.key
-      #   env:
-      #     COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-
-      # - name: Login to GitHub Container Registry
-      #   uses: docker/login-action@v2
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      # # Sign container
+      # - uses: sigstore/cosign-installer@v3.0.3
+      #   if: github.event_name != 'pull_request'
 
       # - name: Sign container image
+      #   if: github.event_name != 'pull_request'
       #   run: |
-      #     cosign sign -y --key cosign.key ${{ steps.registry_case.outputs.lowercase }}/${{ steps.build_image.outputs.image }}@${TAGS}
+      #     cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ steps.registry_case.outputs.lowercase }}/${{ env.IMAGE_NAME }}@${TAGS}
       #   env:
       #     TAGS: ${{ steps.push.outputs.digest }}
       #     COSIGN_EXPERIMENTAL: false
+      #     COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
 
       - name: Echo outputs
+        if: github.event_name != 'pull_request'
         run: |
           echo "${{ toJSON(steps.push.outputs) }}"
