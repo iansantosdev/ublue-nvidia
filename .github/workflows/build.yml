@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        major_version: [38]
+        major_version: [39]
         driver_version: [535]
     steps:
       # Checkout push-to-registry action GitHub repository
@@ -169,11 +169,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image_name: [silverblue, kinoite, vauxite, sericea, base, lxqt, mate]
-        major_version: [38]
+        image_name: [silverblue]
+        major_version: [39]
         driver_version: [535]
         include:
-          - major_version: 38
+          - major_version: 39
             is_latest_version: true
             is_stable_version: true
           - driver_version: 535
